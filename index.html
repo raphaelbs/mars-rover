@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mars Lander Viewer</title>
+  </head>
+  <body>
+    <div id="app">
+      <h1>Mars Lander 2</h1>
+      <div class="container">
+        <canvas id="myCanvas" width="1400" height="600"></canvas>
+        <div>
+          <div>
+            <h2>Controls</h2>
+            <div>
+              <label for="ground">Ground</label>
+              <br />
+              <textarea id="ground" cols="8"></textarea>
+              <br />
+              <label for="ground">Ship</label>
+              <br />
+              <input id="ship" />
+              <br />
+              <button id="reset">Reset</button>
+            </div>
+          </div>
+          <div>
+            <h2>Debug</h2>
+            <div id="debug"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
