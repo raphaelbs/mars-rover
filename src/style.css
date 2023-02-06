@@ -49,11 +49,16 @@ h1 {
 
 #debug {
   overflow: auto;
+  max-height: 500px;
 }
 
-/* #myCanvas {
+#debug > .list {
+  padding: 12px;
+}
+
+#myCanvas {
   max-height: 600px;
-} */
+}
 
 .logo {
   height: 6em;

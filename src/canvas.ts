@@ -1,12 +1,16 @@
+import { GameInput } from "./types";
+
+const SCALE = 0.2;
+
 export class Canvas {
   private ctx: CanvasRenderingContext2D | undefined;
   private width: number | undefined;
   private height: number | undefined;
 
   constructor() {
-    this.getCtx((ctx, width, height) => {
+    this.getCtx((ctx, _, height) => {
       ctx.transform(1, 0, 0, -1, 0, height);
-      ctx.scale(0.2, 0.2);
+      ctx.scale(SCALE, SCALE);
     });
     this.reset();
   }
@@ -33,17 +37,12 @@ export class Canvas {
   }
 
   reset() {
-    this.getCtx((ctx, width, height) => {
-      //   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      // ctx.scale(0.2, 0.2);
-      //   ctx.scale(5, 5);
-
-      //   context.clearRect(0, 0, context.canvas.width, context.canvas.height);
+    this.getCtx((ctx) => {
       ctx.beginPath();
       ctx.lineWidth = 2;
       ctx.scale(5, 5);
-      this.drawRect(0, 0, ctx.canvas.width, ctx.canvas.height, "#ffffff");
-      ctx.scale(0.2, 0.2);
+      this.drawRect(0, 0, ctx.canvas.width, ctx.canvas.height, "#ad6242");
+      ctx.scale(SCALE, SCALE);
 
       ctx.font = "60px Arial";
     });
@@ -56,22 +55,22 @@ export class Canvas {
     yf: number,
     dashed: boolean = false
   ) {
-    if (this.ctx) {
-      if (dashed) this.ctx.setLineDash([5, 3]);
-      this.ctx.beginPath();
-      this.ctx.moveTo(x, y);
-      this.ctx.lineTo(xf, yf);
-      this.ctx.stroke();
-      this.ctx.closePath();
-      if (dashed) this.ctx.setLineDash([]);
-    }
+    this.getCtx((ctx) => {
+      if (dashed) ctx.setLineDash([5, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(xf, yf);
+      ctx.stroke();
+      ctx.closePath();
+      if (dashed) ctx.setLineDash([]);
+    });
   }
 
   drawRect(x: number, y: number, w: number, h: number, color: string) {
-    if (this.ctx) {
-      this.ctx.fillStyle = color;
-      this.ctx.fillRect(x, y, w, h);
-    }
+    this.getCtx((ctx) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, w, h);
+    });
   }
 
   drawVector(
@@ -102,12 +101,12 @@ export class Canvas {
   }
 
   drawText(text: string, x: number, y: number) {
-    if (this.ctx) {
-      this.ctx.save();
-      this.ctx.scale(1, -1);
-      this.ctx.fillText(text, x, y * -1);
-      this.ctx.restore();
-    }
+    this.getCtx((ctx) => {
+      ctx.save();
+      ctx.scale(1, -1);
+      ctx.fillText(text, x, y * -1);
+      ctx.restore();
+    });
   }
 
   drawInfoVector(
@@ -118,24 +117,24 @@ export class Canvas {
     info: string,
     dashed: boolean = false
   ) {
-    if (this.ctx) {
+    this.getCtx(() => {
       const [ax, ay] = this.drawArrow(x, y, size, angle, dashed);
 
       const fx = ax + size * Math.cos(angle);
       const fy = ay + size * Math.sin(angle);
 
       this.drawText(info, fx, fy);
-    }
+    });
   }
 
   drawShip(input: GameInput) {
-    if (this.ctx) {
-      this.ctx.fillStyle = "#000";
+    this.getCtx((ctx) => {
+      ctx.fillStyle = "#000";
       // Ship
-      this.ctx.beginPath();
-      this.ctx.arc(input.x, input.y, 50, 0, 2 * Math.PI);
-      this.ctx.stroke();
-      this.ctx.closePath();
+      ctx.beginPath();
+      ctx.arc(input.x, input.y, 50, 0, 2 * Math.PI);
+      ctx.stroke();
+      ctx.closePath();
 
       // Direction
       const ARROW_SIZE = 120;
@@ -145,7 +144,7 @@ export class Canvas {
         input.y,
         ARROW_SIZE,
         xDir,
-        input.hs + "",
+        input.hs.toFixed(0),
         true
       );
       const yDir = input.vs > 0 ? Math.PI / 2 : -Math.PI / 2; // +1=↓, -1=↑
@@ -154,7 +153,7 @@ export class Canvas {
         input.y,
         ARROW_SIZE,
         yDir,
-        input.vs + "",
+        input.vs.toFixed(0),
         true
       );
 
@@ -169,20 +168,40 @@ export class Canvas {
 
       // Fuel
       this.drawText(
-        `Liters of fuel: ${input.fuel}`,
+        `Liters of fuel: ${input.fuel.toFixed(0)}`,
         input.x - 200,
         input.y + 200
       );
-    }
+    });
+  }
+
+  drawFailure(text: string) {
+    this.getCtx((ctx, width, height) => {
+      ctx.font = "720px Arial";
+      ctx.save();
+      ctx.scale(1, -1);
+      ctx.textAlign = "center";
+      ctx.fillText(text, width / SCALE / 2, (height / SCALE / 2 - 360) * -1);
+      ctx.restore();
+      ctx.font = "60px Arial";
+    });
+  }
+
+  drawGround(groundPoints: number[][]) {
+    this.getCtx((ctx, width) => {
+      groundPoints.push([width / SCALE, 0], [0, 0]);
+      let [previous] = groundPoints;
+
+      let region = new Path2D();
+      region.moveTo(previous[0], previous[1]);
+      for (let i = 1; i < groundPoints.length; i++) {
+        const [x, y] = groundPoints[i];
+        region.lineTo(x, y);
+      }
+      region.closePath();
+      ctx.fillStyle = "#c1440e";
+      ctx.fill(region, "evenodd");
+      ctx.stroke();
+    });
   }
 }
-
-export type GameInput = {
-  x: number;
-  y: number;
-  hs: number;
-  vs: number;
-  fuel: number;
-  rotate: number;
-  power: number;
-};
