@@ -1,5 +1,5 @@
 import { Canvas } from "./canvas";
-import { clientCode } from "./client";
+import { clientStart } from "./client";
 import "./style.css";
 import { GameInput } from "./types";
 
@@ -23,24 +23,23 @@ let simulationSpeed = DEFAULT_SIMULATION_SPEED;
 // Set the values in the UI
 // =====================================================
 
-const ground = document.querySelector("#ground");
+const ground: HTMLTextAreaElement | null = document.querySelector("#ground");
 if (ground) {
   ground.textContent = DEFAULT_GROUND.join("\n");
   ground.setAttribute("rows", DEFAULT_GROUND.length + "");
 }
 
-const ship = document.querySelector("#ship");
+const ship: HTMLInputElement | null = document.querySelector("#ship");
 if (ship) {
-  (ship as HTMLInputElement).value = DEFAULT_SHIP.join(", ");
+  ship.value = DEFAULT_SHIP.join(", ");
 }
 
-const simulationSpeedEl = document.querySelector("#simulationSpeed");
+const simulationSpeedEl: HTMLInputElement | null =
+  document.querySelector("#simulationSpeed");
 if (simulationSpeedEl) {
-  (simulationSpeedEl as HTMLInputElement).value = (
-    DEFAULT_SIMULATION_SPEED * 100
-  ).toString();
+  simulationSpeedEl.value = (DEFAULT_SIMULATION_SPEED * 100).toString();
 
-  (simulationSpeedEl as HTMLInputElement).oninput = function () {
+  simulationSpeedEl.oninput = function () {
     simulationSpeed = 1 - Number((this as HTMLInputElement).value) / 100;
   };
 }
@@ -60,17 +59,9 @@ function log(append: string) {
   }
 }
 
-const reset = document.querySelector("#reset");
+const reset: HTMLButtonElement | null = document.querySelector("#reset");
 if (reset) {
-  (reset as HTMLButtonElement).onclick = function onReset() {
-    if (clear) {
-      clearTimeout(clear);
-    }
-    iteration = 0;
-    realIteration = 0;
-
-    start();
-  };
+  reset.onclick = start;
 }
 
 // =====================================================
@@ -79,16 +70,17 @@ if (reset) {
 
 const canvas = new Canvas();
 
-function drawGround() {
-  canvas.drawGround(DEFAULT_GROUND);
-}
-
 let iteration = 0,
   realIteration = 0,
-  clear: number;
+  timeoutId: number,
+  animationId: number;
 const GRAVITY = 3.711;
 
-function gameLoop(input: GameInput, groundPoints: number[][]) {
+function gameLoop(
+  input: GameInput,
+  groundPoints: number[][],
+  clientCode: (input: GameInput) => number[]
+) {
   const GAME_TICK = Number(((1000 * simulationSpeed) / GAME_SPEED).toFixed(0));
 
   const userRun = realIteration++ % GAME_TICK === 0;
@@ -103,9 +95,9 @@ function gameLoop(input: GameInput, groundPoints: number[][]) {
     buildIterationLog();
   }
 
-  clear = setTimeout(() => {
+  timeoutId = setTimeout(() => {
     canvas.reset();
-    drawGround();
+    canvas.drawGround(groundPoints);
 
     // Draw the ship
     const angle = ((input.rotate + 90) / 180) * -Math.PI;
@@ -205,7 +197,9 @@ function gameLoop(input: GameInput, groundPoints: number[][]) {
       log(text);
     }
 
-    requestAnimationFrame(() => gameLoop(newInput, groundPoints));
+    animationId = requestAnimationFrame(() =>
+      gameLoop(newInput, groundPoints, clientCode)
+    );
   }, GAME_SPEED);
 }
 
@@ -214,14 +208,44 @@ function gameLoop(input: GameInput, groundPoints: number[][]) {
 // =====================================================
 
 function start() {
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+  }
+  if (animationId) {
+    cancelAnimationFrame(animationId);
+  }
+  iteration = 0;
+  realIteration = 0;
+
   // clear debug
   const debug = document.querySelector("#debug");
   if (debug) {
     (debug as HTMLDivElement).innerHTML = "";
   }
 
-  const [x, y, hs, vs, fuel, rotate, power] = DEFAULT_SHIP;
-  gameLoop({ x, y, hs: hs, vs: vs, fuel, rotate, power }, DEFAULT_GROUND);
+  let groundInputs = DEFAULT_GROUND;
+  let shipInputs = DEFAULT_SHIP;
+
+  const ground: HTMLTextAreaElement | null = document.querySelector("#ground");
+  if (ground && ground.value) {
+    groundInputs = ground.value
+      .split("\n")
+      .map((row) => row.split(",").map(Number));
+  }
+
+  const ship: HTMLInputElement | null = document.querySelector("#ship");
+  if (ship && ship.value) {
+    shipInputs = ship.value.split(",").map(Number);
+  }
+
+  const [x, y, hs, vs, fuel, rotate, power] = shipInputs;
+  const clientCode = clientStart(groundInputs);
+
+  gameLoop(
+    { x, y, hs: hs, vs: vs, fuel, rotate, power },
+    groundInputs,
+    clientCode
+  );
 }
 
 start();
