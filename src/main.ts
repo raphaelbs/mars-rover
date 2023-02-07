@@ -127,6 +127,11 @@ let iteration = 0,
   animationId: number;
 const GRAVITY = 3.711;
 
+function terminate(message: string) {
+  canvas.drawFailure(message);
+  log(message);
+}
+
 function gameLoop(
   input: GameInput,
   groundPoints: number[][],
@@ -155,18 +160,24 @@ function gameLoop(
     canvas.drawGround(groundPoints);
 
     // Draw the ship
-    const angle = ((input.rotate + 90) / 180) * -Math.PI;
-    canvas.drawShip({
-      ...input,
-      rotate: angle,
-    });
+    function drawShip() {
+      const angle = ((input.rotate + 90) / 180) * -Math.PI;
+      canvas.drawShip({
+        ...input,
+        rotate: angle,
+      });
+    }
+
+    function drawFire() {
+      canvas.drawText("🔥", input.x - 160, input.y - 100, 320);
+    }
 
     // check colision with screen
     if (input.x < 0 || input.x > 7000 || input.y < 0 || input.y > 3000) {
       buildIterationLog();
       log(text);
 
-      log("flown away");
+      terminate("flown away 👋");
       return;
     }
     // check colision with ground
@@ -184,16 +195,18 @@ function gameLoop(
             Math.abs(input.vs) < LANDING_VERTICAL_SPEED &&
             Math.abs(input.hs) < LANDING_HORIZONTAL_SPEED
           ) {
-            canvas.drawFailure("landed!");
-            log("landed");
+            drawShip();
+
+            terminate("landed! 🏆");
           } else {
-            canvas.drawFailure("wasted");
-            log("crashed");
+            drawFire();
+            terminate("crashed ☠️");
           }
           buildIterationLog();
           log(text);
           return;
         } else {
+          drawShip();
           break;
         }
       } else {

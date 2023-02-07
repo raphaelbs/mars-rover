@@ -100,11 +100,13 @@ export class Canvas {
     return [ax, ay];
   }
 
-  drawText(text: string, x: number, y: number) {
+  drawText(text: string, x: number, y: number, size: number = 60) {
     this.getCtx((ctx) => {
       ctx.save();
       ctx.scale(1, -1);
+      ctx.font = `${size}px Arial`;
       ctx.fillText(text, x, y * -1);
+      ctx.font = "60px Arial";
       ctx.restore();
     });
   }
@@ -211,6 +213,7 @@ export class Canvas {
       ctx.fillStyle = "#c1440e";
       ctx.fill(region, "evenodd");
       ctx.stroke();
+      ctx.fillStyle = "#000";
     });
   }
 }
