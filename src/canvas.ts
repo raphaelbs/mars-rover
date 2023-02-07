@@ -129,12 +129,21 @@ export class Canvas {
 
   drawShip(input: GameInput) {
     this.getCtx((ctx) => {
-      ctx.fillStyle = "#000";
       // Ship
-      ctx.beginPath();
-      ctx.arc(input.x, input.y, 50, 0, 2 * Math.PI);
-      ctx.stroke();
-      ctx.closePath();
+      const IMG_SIZE = 150;
+
+      imgRef.then((img) => {
+        ctx.save();
+        ctx.translate(input.x, input.y);
+
+        ctx.rotate(-1 * input.rotate + Math.PI / 4);
+
+        ctx.drawImage(img, -IMG_SIZE / 2, -IMG_SIZE / 2, IMG_SIZE, IMG_SIZE);
+
+        ctx.restore();
+      });
+
+      ctx.fillStyle = "#000";
 
       // Direction
       const ARROW_SIZE = 120;
@@ -205,3 +214,11 @@ export class Canvas {
     });
   }
 }
+
+const imgRef: Promise<HTMLImageElement> = new Promise((resolve) => {
+  const image = new Image();
+  image.addEventListener("load", function () {
+    resolve(this);
+  });
+  image.src = "rocket-svgrepo-com.svg";
+});

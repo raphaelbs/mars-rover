@@ -14,10 +14,17 @@ const DEFAULT_GROUND = [
 
 //(X Y hSpeed vSpeed fuel rotate power)
 const DEFAULT_SHIP = [5000, 2500, -50, 0, 1000, 90, 0];
-
 const DEFAULT_SIMULATION_SPEED = 0.5;
 const GAME_SPEED = 16;
 let simulationSpeed = DEFAULT_SIMULATION_SPEED;
+
+// =====================================================
+// Acceptable landing parameters
+// =====================================================
+
+const LANDING_ANGLE = 0;
+const LANDING_VERTICAL_SPEED = 40;
+const LANDING_HORIZONTAL_SPEED = 20;
 
 // =====================================================
 // Set the values in the UI
@@ -59,9 +66,53 @@ function log(append: string) {
   }
 }
 
+function getPower() {
+  const power: HTMLInputElement | null = document.querySelector("#power");
+  if (power) {
+    return power.value;
+  }
+  return 0;
+}
+
+function setPower(value: string) {
+  const power: HTMLInputElement | null = document.querySelector("#power");
+  if (power) {
+    power.value = value;
+  }
+}
+
+function getRotate() {
+  const rotate: HTMLInputElement | null = document.querySelector("#rotate");
+  if (rotate) {
+    return rotate.value;
+  }
+  return 0;
+}
+
+function setRotate(value: string) {
+  const rotate: HTMLInputElement | null = document.querySelector("#rotate");
+  if (rotate) {
+    rotate.value = value;
+  }
+}
+
+function getManualControl() {
+  const manual: HTMLInputElement | null = document.querySelector("#manual");
+  if (manual) {
+    return manual.checked;
+  }
+  return false;
+}
+
 const reset: HTMLButtonElement | null = document.querySelector("#reset");
 if (reset) {
-  reset.onclick = start;
+  reset.addEventListener("click", start);
+}
+const zero: HTMLButtonElement | null = document.querySelector("#zero");
+if (zero) {
+  zero.addEventListener("click", () => {
+    setRotate("90");
+  });
 }
 
 // =====================================================
@@ -87,8 +138,12 @@ function gameLoop(
   let text = "";
 
   function buildIterationLog() {
-    text = `Iteration ${iteration++}:`;
-    text += `\n  x:${input.x}, y:${input.y}, hs:${input.hs}, vs:${input.vs}, rotate:${input.rotate}, power:${input.power}, fuel:${input.fuel}`;
+    text = `🕗 ${iteration++}s`;
+    text += `\n  x: ${input.x.toFixed(0)}, y: ${input.y.toFixed(
+      0
+    )}, hs: ${input.hs.toFixed(0)}, vs: ${input.vs.toFixed(0)}, rotate: ${
+      input.rotate
+    }, power: ${input.power}, fuel: ${input.fuel.toFixed(0)}`;
   }
 
   if (userRun) {
@@ -123,10 +178,20 @@ function gameLoop(
         const groundY = a * input.x + b;
 
         if (groundY > input.y) {
+          // Check landing conditions
+          if (
+            input.rotate === LANDING_ANGLE &&
+            Math.abs(input.vs) < LANDING_VERTICAL_SPEED &&
+            Math.abs(input.hs) < LANDING_HORIZONTAL_SPEED
+          ) {
+            canvas.drawFailure("landed!");
+            log("landed");
+          } else {
+            canvas.drawFailure("wasted");
+            log("crashed");
+          }
           buildIterationLog();
           log(text);
-          canvas.drawFailure("wasted");
-          log("crashed");
           return;
         } else {
           break;
@@ -144,14 +209,27 @@ function gameLoop(
 
     // Get user calc
     if (userRun) {
-      const [desiredRotate, desiredPower] = clientCode(input);
-      text += `\n  user out: ${desiredRotate}, ${desiredPower}`;
+      const manualOverride = getManualControl();
+
+      let desiredRotate, desiredPower;
+
+      if (!manualOverride) {
+        [desiredRotate, desiredPower] = clientCode(input);
+        text += `\n  user out: ${desiredRotate}, ${desiredPower}`;
+
+        // Set in the UI
+        setPower(desiredPower + "");
+        setRotate(desiredRotate + 90 + "");
+      } else {
+        desiredPower = Number(getPower());
+        desiredRotate = Number(getRotate()) - 90;
+      }
 
       // Validation
       if (desiredRotate > 90 || desiredRotate < -90)
-        throw new Error("Rotate value incorrect");
+        throw new Error(`Rotate value [${desiredRotate}] incorrect`);
       if (desiredPower > 4 || desiredPower < 0)
-        throw new Error("Power value incorrect");
+        throw new Error(`Power value [${desiredPower}] incorrect`);
 
       // Calculate new parameters
       newRotate =
