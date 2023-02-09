@@ -124,7 +124,9 @@ const canvas = new Canvas();
 let iteration = 0,
   realIteration = 0,
   timeoutId: number,
-  animationId: number;
+  animationId: number,
+  desiredRotate: number,
+  desiredPower: number;
 const GRAVITY = 3.711;
 
 function terminate(message: string) {
@@ -132,23 +134,31 @@ function terminate(message: string) {
   log(message);
 }
 
+function strip(n: number) {
+  return Number(n.toPrecision(7));
+}
+
 function gameLoop(
   input: GameInput,
   groundPoints: number[][],
   clientCode: (input: GameInput) => number[]
 ) {
-  const GAME_TICK = Number(((1000 * simulationSpeed) / GAME_SPEED).toFixed(0));
+  const GAME_TICK = Math.round((1000 * simulationSpeed) / GAME_SPEED);
+  const MAX_DELTA_ANGLE = strip(15 / GAME_TICK);
+  const MAX_DELTA_POWER = 1 / GAME_TICK;
 
   const userRun = realIteration++ % GAME_TICK === 0;
   let text = "";
 
   function buildIterationLog() {
     text = `🕗 ${iteration++}s`;
-    text += `\n  x: ${input.x.toFixed(0)}, y: ${input.y.toFixed(
-      0
-    )}, hs: ${input.hs.toFixed(0)}, vs: ${input.vs.toFixed(0)}, rotate: ${
-      input.rotate
-    }, power: ${input.power}, fuel: ${input.fuel.toFixed(0)}`;
+    text += `\n  x: ${Math.round(input.x)}, y: ${Math.round(
+      input.y
+    )}, hs: ${Math.round(input.hs)}, vs: ${Math.round(
+      input.vs
+    )}, rotate: ${Math.round(input.rotate)}, power: ${Math.round(
+      input.power
+    )}, fuel: ${Math.round(input.fuel)}`;
   }
 
   if (userRun) {
@@ -224,8 +234,6 @@ function gameLoop(
     if (userRun) {
       const manualOverride = getManualControl();
 
-      let desiredRotate, desiredPower;
-
       if (!manualOverride) {
         [desiredRotate, desiredPower] = clientCode(input);
         text += `\n  user out: ${desiredRotate}, ${desiredPower}`;
@@ -243,26 +251,23 @@ function gameLoop(
         throw new Error(`Rotate value [${desiredRotate}] incorrect`);
       if (desiredPower > 4 || desiredPower < 0)
         throw new Error(`Power value [${desiredPower}] incorrect`);
+    }
+    // Calculate new parameters
+    const rotateDelta = strip(desiredRotate + 90 - (input.rotate + 90));
+    const rotateDir = rotateDelta > 0 ? 1 : -1;
+    newRotate = strip(
+      input.rotate +
+        Math.min(Math.abs(rotateDelta), MAX_DELTA_ANGLE) * rotateDir
+    );
 
-      // Calculate new parameters
-      newRotate =
-        Math.abs(desiredRotate + 90 - (input.rotate + 90)) <= 15
-          ? desiredRotate
-          : desiredRotate > input.rotate
-          ? input.rotate + 15
-          : input.rotate - 15;
+    if (input.fuel === 0) {
+      newPower = 0;
+    } else {
+      const powerDelta = desiredPower - input.power;
+      const powerDir = powerDelta > 0 ? 1 : -1;
       newPower =
-        Math.abs(input.power - desiredPower) <= 1
-          ? desiredPower
-          : desiredPower > input.power
-          ? input.power + 1
-          : input.power - 1;
-
-      text += `\n  comp out: ${newRotate}, ${newPower}`;
-
-      if (input.fuel === 0) {
-        newPower = 0;
-      }
+        input.power +
+        Math.min(Math.abs(powerDelta), MAX_DELTA_POWER) * powerDir;
     }
 
     // Calculate new position values

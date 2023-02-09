@@ -155,7 +155,7 @@ export class Canvas {
         input.y,
         ARROW_SIZE,
         xDir,
-        input.hs.toFixed(0),
+        Math.round(input.hs) + "",
         true
       );
       const yDir = input.vs > 0 ? Math.PI / 2 : -Math.PI / 2; // +1=↓, -1=↑
@@ -164,7 +164,7 @@ export class Canvas {
         input.y,
         ARROW_SIZE,
         yDir,
-        input.vs.toFixed(0),
+        Math.round(input.vs) + "",
         true
       );
 
@@ -174,7 +174,7 @@ export class Canvas {
         input.y,
         (input.power / 4 + 1.5) * ARROW_SIZE,
         Math.PI - input.rotate,
-        input.power + ""
+        Math.round(input.power) + ""
       );
 
       // Fuel
