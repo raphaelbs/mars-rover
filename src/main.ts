@@ -250,15 +250,14 @@ function gameLoop(
     if (userRun) {
       const manualOverride = getManualControl();
 
-      if (!manualOverride) {
-        [desiredRotate, desiredPower] = clientCode(input);
-
+      [desiredRotate, desiredPower] = clientCode(input);
+      if (manualOverride) {
+        desiredPower = Number(getPower());
+        desiredRotate = Number(getRotate()) - 90;
+      } else {
         // Set in the UI
         setPower(desiredPower + "");
         setRotate(desiredRotate + 90 + "");
-      } else {
-        desiredPower = Number(getPower());
-        desiredRotate = Number(getRotate()) - 90;
       }
 
       // Validation
@@ -356,7 +355,7 @@ function start() {
   }
 
   const [x, y, hs, vs, fuel, rotate, power] = shipInputs;
-  const clientCode = clientStart(groundInputs);
+  const clientCode = clientStart(groundInputs, canvas);
 
   gameLoop(
     { x, y, hs: hs, vs: vs, fuel, rotate, power },
