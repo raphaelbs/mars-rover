@@ -47,16 +47,17 @@ if (simulationSpeedEl) {
   simulationSpeedEl.value = (DEFAULT_SIMULATION_SPEED * 100).toString();
 
   simulationSpeedEl.oninput = function () {
-    simulationSpeed = 1 - Number((this as HTMLInputElement).value) / 100;
+    simulationSpeed =
+      1 - Math.min(Number((this as HTMLInputElement).value), 99) / 100;
   };
 }
 
-function log(append: string) {
+function log(append: string[]) {
   const debug = document.querySelector("#debug");
   if (debug) {
     const list = document.createElement("div");
     list.classList.add("list");
-    append.split("\n").forEach((text) => {
+    append.forEach((text) => {
       const item = document.createElement("div");
       list.append(item);
       item.textContent = text;
@@ -137,11 +138,6 @@ let iteration = 0,
   running = true;
 const GRAVITY = 3.711;
 
-function terminate(message: string) {
-  canvas.drawFailure(message);
-  log(message);
-}
-
 function strip(n: number) {
   return Number(n.toPrecision(7));
 }
@@ -163,44 +159,52 @@ function gameLoop(
   const MAX_DELTA_POWER = 1 / GAME_TICK;
 
   const userRun = realIteration++ % GAME_TICK === 0;
-  let text = "";
 
-  function buildIterationLog() {
-    text = `🕗 ${iteration++}s`;
-    text += `\n  x: ${Math.round(input.x)}, y: ${Math.round(
-      input.y
-    )}, hs: ${Math.round(input.hs)}, vs: ${Math.round(
-      input.vs
-    )}, rotate: ${Math.round(input.rotate)}, power: ${Math.round(
-      input.power
-    )}, fuel: ${Math.round(input.fuel)}`;
+  function logIteration(extra?: string) {
+    const text: string[] = [];
+
+    text.push(`🕗 ${iteration++}s`);
+    text.push(
+      `  x: ${Math.round(input.x)}, y: ${Math.round(input.y)}, hs: ${Math.round(
+        input.hs
+      )}, vs: ${Math.round(input.vs)}, rotate: ${Math.round(
+        input.rotate
+      )}, power: ${Math.round(input.power)}, fuel: ${Math.round(input.fuel)}`
+    );
+
+    if (extra) {
+      text.push(extra);
+    }
+
+    log(text);
   }
 
-  if (userRun) {
-    buildIterationLog();
+  function terminate(message: string) {
+    canvas.drawFailure(message);
+    logIteration();
+    log([message]);
+  }
+
+  // Draw the ship
+  function drawShip() {
+    const angle = ((input.rotate + 90) / 180) * -Math.PI;
+    canvas.drawShip({
+      ...input,
+      rotate: angle,
+    });
+  }
+
+  function drawFire() {
+    canvas.drawText("🔥", input.x - 160, input.y - 100, 320);
   }
 
   timeoutId = setTimeout(() => {
     canvas.reset();
     canvas.drawGround(groundPoints);
 
-    // Draw the ship
-    function drawShip() {
-      const angle = ((input.rotate + 90) / 180) * -Math.PI;
-      canvas.drawShip({
-        ...input,
-        rotate: angle,
-      });
-    }
-
-    function drawFire() {
-      canvas.drawText("🔥", input.x - 160, input.y - 100, 320);
-    }
-
     // check colision with screen
     if (input.x < 0 || input.x > 7000 || input.y < 0 || input.y > 3000) {
-      buildIterationLog();
-      log(text);
+      logIteration();
 
       terminate("flown away 👋");
       return;
@@ -227,13 +231,10 @@ function gameLoop(
             drawFire();
             terminate("crashed ☠️");
           }
-          buildIterationLog();
-          log(text);
           return;
-        } else {
-          drawShip();
-          break;
         }
+        drawShip();
+        break;
       } else {
         lastX = x;
         lastY = y;
@@ -251,7 +252,6 @@ function gameLoop(
 
       if (!manualOverride) {
         [desiredRotate, desiredPower] = clientCode(input);
-        text += `\n  user out: ${desiredRotate}, ${desiredPower}`;
 
         // Set in the UI
         setPower(desiredPower + "");
@@ -305,8 +305,10 @@ function gameLoop(
     };
 
     if (userRun) {
-      log(text);
+      logIteration(`  user out: ${desiredRotate}, ${desiredPower}`);
     }
+
+    if (canvas.clientDrawings) canvas.clientDrawings();
 
     animationId = requestAnimationFrame(() =>
       gameLoop(newInput, groundPoints, clientCode)
@@ -318,13 +320,17 @@ function gameLoop(
 // Initialize
 // =====================================================
 
-function start() {
+function stopListeners() {
   if (timeoutId) {
     clearTimeout(timeoutId);
   }
   if (animationId) {
     cancelAnimationFrame(animationId);
   }
+}
+
+function start() {
+  stopListeners();
   iteration = 0;
   realIteration = 0;
 
