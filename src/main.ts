@@ -114,6 +114,13 @@ if (zero) {
     setRotate("90");
   });
 }
+const playpause: HTMLButtonElement | null =
+  document.querySelector("#playpause");
+if (playpause) {
+  playpause.addEventListener("click", () => {
+    running = !running;
+  });
+}
 
 // =====================================================
 // Draw
@@ -126,7 +133,8 @@ let iteration = 0,
   timeoutId: number,
   animationId: number,
   desiredRotate: number,
-  desiredPower: number;
+  desiredPower: number,
+  running = true;
 const GRAVITY = 3.711;
 
 function terminate(message: string) {
@@ -143,6 +151,13 @@ function gameLoop(
   groundPoints: number[][],
   clientCode: (input: GameInput) => number[]
 ) {
+  if (!running) {
+    animationId = requestAnimationFrame(() =>
+      gameLoop(input, groundPoints, clientCode)
+    );
+    return;
+  }
+
   const GAME_TICK = Math.round((1000 * simulationSpeed) / GAME_SPEED);
   const MAX_DELTA_ANGLE = strip(15 / GAME_TICK);
   const MAX_DELTA_POWER = 1 / GAME_TICK;
