@@ -250,7 +250,11 @@ function gameLoop(
     if (userRun) {
       const manualOverride = getManualControl();
 
+      const ts = Date.now();
       [desiredRotate, desiredPower] = clientCode(input);
+      if (Date.now() - ts > 100) {
+        return terminate(`Too long to respond (${Date.now() - ts}ms)`);
+      }
       if (manualOverride) {
         desiredPower = Number(getPower());
         desiredRotate = Number(getRotate()) - 90;
@@ -262,9 +266,9 @@ function gameLoop(
 
       // Validation
       if (desiredRotate > 90 || desiredRotate < -90)
-        throw new Error(`Rotate value [${desiredRotate}] incorrect`);
+        return terminate(`Rotate value [${desiredRotate}] incorrect`);
       if (desiredPower > 4 || desiredPower < 0)
-        throw new Error(`Power value [${desiredPower}] incorrect`);
+        return terminate(`Power value [${desiredPower}] incorrect`);
     }
     // Calculate new parameters
     const rotateDelta = strip(desiredRotate + 90 - (input.rotate + 90));
@@ -300,7 +304,7 @@ function gameLoop(
       y: newY,
       hs: newHS,
       vs: newVS,
-      fuel: input.fuel - newPower / GAME_TICK,
+      fuel: Math.max(input.fuel - newPower / GAME_TICK, 0),
     };
 
     if (userRun) {
