@@ -107,7 +107,7 @@ function getManualControl() {
 
 const reset: HTMLButtonElement | null = document.querySelector("#reset");
 if (reset) {
-  reset.addEventListener("click", start);
+  reset.addEventListener("click", () => start());
 }
 const zero: HTMLButtonElement | null = document.querySelector("#zero");
 if (zero) {
@@ -128,6 +128,8 @@ if (playpause) {
 // =====================================================
 
 const canvas = new Canvas();
+
+canvas.onClick = start;
 
 let iteration = 0,
   realIteration = 0,
@@ -332,7 +334,7 @@ function stopListeners() {
   }
 }
 
-function start() {
+function start(cx?: number, cy?: number) {
   running = true;
   stopListeners();
   iteration = 0;
@@ -363,7 +365,7 @@ function start() {
   const clientCode = clientStart(groundInputs, canvas);
 
   gameLoop(
-    { x, y, hs: hs, vs: vs, fuel, rotate, power },
+    { x: cx || x, y: cy || y, hs: hs, vs: vs, fuel, rotate, power },
     groundInputs,
     clientCode
   );

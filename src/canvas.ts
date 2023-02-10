@@ -5,6 +5,7 @@ const SCALE = 0.2;
 export const COLOR = {
   WHITE: "#FFF",
   BLACK: "#000",
+  BLUE: "#00F",
   SKY: "#ad6242",
   GROUND: "#c1440e",
 };
@@ -14,6 +15,7 @@ export class Canvas {
   private width: number | undefined;
   private height: number | undefined;
   clientDrawings: (() => void) | null;
+  onClick: ((x: number, y: number) => void) | null;
 
   constructor() {
     this.getCtx((ctx) => {
@@ -22,6 +24,7 @@ export class Canvas {
     });
     this.reset();
     this.clientDrawings = null;
+    this.onClick = null;
   }
 
   getCtx(
@@ -36,6 +39,12 @@ export class Canvas {
       const ctx = (c as HTMLCanvasElement).getContext("2d");
 
       if (ctx) {
+        c.addEventListener("click", (ev) => {
+          this.onClick?.(
+            ev.offsetX / SCALE,
+            (ctx.canvas.height - ev.offsetY) / SCALE
+          );
+        });
         this.ctx = ctx;
         this.width = ctx.canvas.width / SCALE;
         this.height = ctx.canvas.height / SCALE;
