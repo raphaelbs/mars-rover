@@ -333,6 +333,7 @@ function stopListeners() {
 }
 
 function start() {
+  running = true;
   stopListeners();
   iteration = 0;
   realIteration = 0;

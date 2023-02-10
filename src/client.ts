@@ -6,51 +6,83 @@ export function clientStart(groundPoints: number[][], canvas: Canvas) {
   const LANDING_VERTICAL_SPEED = 40;
   const LANDING_HORIZONTAL_SPEED = 20;
   const GRAVITY = 3.711;
-  const lz = getFlatGround();
+  const WORLD_WIDTH = 7000;
+  const WORLD_HEIGHT = 3000;
+
+  const landingZone = getFlatGround();
+
+  if (!landingZone)
+    return function clientCode(_: GameInput) {
+      return [0, 0];
+    };
 
   return function clientCode(input: GameInput) {
-    // TODO algo
-    // console.log(input);
-
     const ship = new Point(input.x, input.y);
+    const { predictions, result } = inertialTrajectory();
+    const resultPoint = new Point(result.x, result.y);
+    const inertialSuccessLanding =
+      Math.abs(result.hs) < LANDING_HORIZONTAL_SPEED &&
+      Math.abs(result.vs) < LANDING_VERTICAL_SPEED &&
+      result.rotate === LANDING_ANGLE;
 
     canvas.clientDrawings = function () {
-      if (lz) {
-        lz.p1.draw(canvas);
-        lz.p2.draw(canvas);
-        lz.draw(canvas);
+      landingZone.p1.draw(canvas);
+      landingZone.p2.draw(canvas);
+      landingZone.draw(canvas);
 
-        const LZ = getLandingLocation(lz);
-        canvas.drawText("LZ", LZ.x, LZ.y, 80, COLOR.BLACK, "center");
+      const closestLz = getLandingLocation(landingZone, resultPoint);
+      closestLz.draw(canvas);
+      closestLz.drawText(canvas, "cLZ");
 
-        inertialTrajectory().forEach((point) => point.draw(canvas));
+      predictions.forEach((point, index) => {
+        if (index < predictions.length - 1) point.draw(canvas);
+      });
+
+      const SIZE = 120;
+      if (inertialSuccessLanding) {
+        canvas.drawText("✅", result.x, result.y - SIZE / 2, SIZE, "center");
+      } else {
+        canvas.drawText("💥", result.x, result.y - SIZE / 2, SIZE, "center");
       }
     };
 
-    return [-5, 3];
+    let rotate = -5,
+      power = 3;
+
+    return [rotate, power];
 
     // =====================================================
     // Flight plan
     // =====================================================
 
     function inertialTrajectory() {
-      let predictedShip = new Point(input.x, input.y);
+      let predictedShip = ship;
       let { x, y, hs, vs, rotate, fuel, power } = input;
       const angle = ((rotate + 90) / 180) * Math.PI;
       const predictions: Point[] = [];
+      let result = { x, y, hs, vs, rotate, fuel, power };
+      let groundColision = false,
+        flyAway = false;
 
-      while (!checkGroundColision(predictedShip)) {
+      while (!groundColision && !flyAway) {
+        if (fuel === 0) {
+          power = 0;
+        }
         hs += Math.cos(angle) * power;
         vs += Math.sin(angle) * power - GRAVITY;
         x += hs;
         y += vs;
-        fuel -= power;
+        fuel = Math.max(fuel - power, 0);
+        result = { x, y, hs, vs, rotate, fuel, power };
 
         predictedShip = new Point(x, y);
         predictions.push(predictedShip);
+
+        groundColision = checkGroundColision(predictedShip);
+        flyAway = checkFlyAway(predictedShip);
       }
 
-      return predictions;
+      return { predictions, result };
     }
 
     function checkGroundColision(ship: Point) {
@@ -74,11 +106,20 @@ export function clientStart(groundPoints: number[][], canvas: Canvas) {
       return false;
     }
 
-    function getLandingLocation(lz: Line): Point {
-      const line = lz.getPerpendicular(ship);
+    function checkFlyAway(ship: Point) {
+      return (
+        ship.x < 0 ||
+        ship.y < 0 ||
+        ship.x > WORLD_WIDTH ||
+        ship.y > WORLD_HEIGHT
+      );
+    }
+
+    function getLandingLocation(lz: Line, point: Point): Point {
+      const line = lz.getPerpendicular(point);
       let LZ;
       if (line.isTangencial()) {
-        LZ = lz.getCoincident(ship);
+        LZ = lz.getCoincident(point);
       } else {
         LZ = lz.getIntersection(line);
       }
@@ -122,8 +163,18 @@ interface Sprite {
 class Point implements Sprite {
   constructor(readonly x: number, readonly y: number) {}
 
+  isBetween(line: Line, axis: "x" | "y") {
+    const bigger = Math.max(line.p1[axis], line.p2[axis]);
+    const smaller = Math.min(line.p1[axis], line.p2[axis]);
+    return smaller < this[axis] && this[axis] < bigger;
+  }
+
   draw(canvas: Canvas, color: string = COLOR.WHITE) {
     canvas.drawCircle(this.x, this.y, 10, color);
+  }
+
+  drawText(canvas: Canvas, text: string) {
+    canvas.drawText(text, this.x, this.y - 100, 80, "center");
   }
 
   getDistance(point: Point): number {

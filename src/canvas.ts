@@ -120,8 +120,8 @@ export class Canvas {
     x: number,
     y: number,
     size: number = 60,
-    color: string = COLOR.BLACK,
-    position: CanvasTextAlign = "left"
+    position: CanvasTextAlign = "left",
+    color: string = COLOR.BLACK
   ) {
     this.getCtx((ctx) => {
       ctx.save();
@@ -224,14 +224,7 @@ export class Canvas {
 
   drawFailure(text: string) {
     this.getCtx((_, width, height) => {
-      this.drawText(
-        text,
-        width / 2,
-        height / 2 - 360,
-        720,
-        undefined,
-        "center"
-      );
+      this.drawText(text, width / 2, height / 2 - 360, 720, "center");
     });
   }
 
