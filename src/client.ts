@@ -2,7 +2,11 @@ import { Canvas, COLOR } from "./canvas";
 import { GameInput } from "./types";
 
 export function clientStart(groundPoints: number[][], canvas: Canvas) {
-  const lz = getFlatGround(groundPoints);
+  const LANDING_ANGLE = 0;
+  const LANDING_VERTICAL_SPEED = 40;
+  const LANDING_HORIZONTAL_SPEED = 20;
+  const GRAVITY = 3.711;
+  const lz = getFlatGround();
 
   return function clientCode(input: GameInput) {
     // TODO algo
@@ -16,52 +20,95 @@ export function clientStart(groundPoints: number[][], canvas: Canvas) {
         lz.p2.draw(canvas);
         lz.draw(canvas);
 
-        const LZ = getLandingLocation(ship, lz);
+        const LZ = getLandingLocation(lz);
         canvas.drawText("LZ", LZ.x, LZ.y, 80, COLOR.BLACK, "center");
+
+        inertialTrajectory().forEach((point) => point.draw(canvas));
       }
     };
 
     return [-5, 3];
-  };
-}
 
-// =====================================================
-// Flight plan
-// =====================================================
+    // =====================================================
+    // Flight plan
+    // =====================================================
 
-function getFlatGround(groundPoints: number[][]): Line | null {
-  const points = groundPoints.map(([x, y]) => new Point(x, y));
-  let prevPoint: Point | null = null;
+    function inertialTrajectory() {
+      let predictedShip = new Point(input.x, input.y);
+      let { x, y, hs, vs, rotate, fuel, power } = input;
+      const angle = ((rotate + 90) / 180) * Math.PI;
+      const predictions: Point[] = [];
 
-  for (const point of points) {
-    if (point.y === prevPoint?.y) {
-      return new Line(prevPoint, point);
+      while (!checkGroundColision(predictedShip)) {
+        hs += Math.cos(angle) * power;
+        vs += Math.sin(angle) * power - GRAVITY;
+        x += hs;
+        y += vs;
+        fuel -= power;
+
+        predictedShip = new Point(x, y);
+        predictions.push(predictedShip);
+      }
+
+      return predictions;
     }
-    prevPoint = point;
-  }
 
-  return null;
-}
+    function checkGroundColision(ship: Point) {
+      const points = groundPoints.map(([x, y]) => new Point(x, y));
+      let prevPoint: Point | null = null;
 
-function getLandingLocation(ship: Point, lz: Line): Point {
-  const line = lz.getPerpendicular(ship);
-  let LZ;
-  if (line.isTangencial()) {
-    LZ = lz.getCoincident(ship);
-  } else {
-    LZ = lz.getIntersection(line);
-  }
+      for (const point of points) {
+        if (prevPoint && ship.x < point.x) {
+          const line = new Line(prevPoint, point);
 
-  const dp1p2 = lz.p1.getDistance(lz.p2);
-  const dLZp1 = LZ.getDistance(lz.p1);
-  const dLZp2 = LZ.getDistance(lz.p2);
-  if (dLZp1 > dp1p2) {
-    return lz.p2;
+          const acceptedGroundY = line.fn(ship.x);
+
+          if (acceptedGroundY > ship.y) {
+            return true;
+          }
+          return false;
+        } else {
+          prevPoint = point;
+        }
+      }
+      return false;
+    }
+
+    function getLandingLocation(lz: Line): Point {
+      const line = lz.getPerpendicular(ship);
+      let LZ;
+      if (line.isTangencial()) {
+        LZ = lz.getCoincident(ship);
+      } else {
+        LZ = lz.getIntersection(line);
+      }
+
+      const dp1p2 = lz.p1.getDistance(lz.p2);
+      const dLZp1 = LZ.getDistance(lz.p1);
+      const dLZp2 = LZ.getDistance(lz.p2);
+      if (dLZp1 > dp1p2) {
+        return lz.p2;
+      }
+      if (dLZp2 > dp1p2) {
+        return lz.p1;
+      }
+      return LZ;
+    }
+  };
+
+  function getFlatGround(): Line | null {
+    const points = groundPoints.map(([x, y]) => new Point(x, y));
+    let prevPoint: Point | null = null;
+
+    for (const point of points) {
+      if (point.y === prevPoint?.y) {
+        return new Line(prevPoint, point);
+      }
+      prevPoint = point;
+    }
+
+    return null;
   }
-  if (dLZp2 > dp1p2) {
-    return lz.p1;
-  }
-  return LZ;
 }
 
 // =====================================================
