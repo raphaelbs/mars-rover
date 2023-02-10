@@ -238,13 +238,14 @@ export class Canvas {
   drawGround(groundPoints: number[][]) {
     this.getCtx((ctx) => {
       if (this.width) {
-        groundPoints.push([this.width, 0], [0, 0]);
-        let [previous] = groundPoints;
+        const copy = [...groundPoints];
+        copy.push([this.width, 0], [0, 0]);
+        let [previous] = copy;
 
         let region = new Path2D();
         region.moveTo(previous[0], previous[1]);
-        for (let i = 1; i < groundPoints.length; i++) {
-          const [x, y] = groundPoints[i];
+        for (let i = 1; i < copy.length; i++) {
+          const [x, y] = copy[i];
           region.lineTo(x, y);
         }
         region.closePath();
