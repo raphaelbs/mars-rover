@@ -112,6 +112,7 @@ export function clientStart(ground: number[][], canvas: Canvas) {
     }
 
     function getLandingLocation(lz: Line, point: Point): Point {
+      const SAFETY_MARGIN = 20;
       const line = lz.getPerpendicular(point);
       let LZ;
       if (line.isTangencial()) {
@@ -120,14 +121,11 @@ export function clientStart(ground: number[][], canvas: Canvas) {
         LZ = lz.getIntersection(line);
       }
 
-      const dp1p2 = lz.p1.getDistance(lz.p2);
-      const dLZp1 = LZ.getDistance(lz.p1);
-      const dLZp2 = LZ.getDistance(lz.p2);
-      if (dLZp1 > dp1p2) {
-        return lz.p2;
+      if (LZ.x > lz.p2.x) {
+        return lz.p2.offset(-SAFETY_MARGIN, 0);
       }
-      if (dLZp2 > dp1p2) {
-        return lz.p1;
+      if (LZ.x < lz.p1.x) {
+        return lz.p1.offset(SAFETY_MARGIN, 0);
       }
       return LZ;
     }
@@ -212,6 +210,10 @@ class Point implements Sprite {
     return Math.sqrt(
       Math.pow(point.x - this.x, 2) + Math.pow(point.y - this.y, 2)
     );
+  }
+
+  offset(x: number, y: number) {
+    return new Point(this.x + x, this.y + y);
   }
 }
 
