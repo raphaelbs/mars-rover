@@ -12,11 +12,13 @@ export const COLOR = {
   GROUND: "#c1440e",
 };
 
+export type CanvasDrawing = (canvas: Canvas) => void;
+
 export class Canvas {
   private ctx: CanvasRenderingContext2D | undefined;
   private width: number | undefined;
   private height: number | undefined;
-  clientDrawings: (() => void) | null;
+  private readonly clientDrawings: CanvasDrawing[];
   onClick: ((x: number, y: number) => void) | null;
 
   constructor() {
@@ -25,8 +27,23 @@ export class Canvas {
       ctx.scale(SCALE, SCALE);
     });
     this.reset();
-    this.clientDrawings = null;
+    this.clientDrawings = [];
     this.onClick = null;
+  }
+
+  addClientDrawing(...clientDrawings: CanvasDrawing[]) {
+    this.clientDrawings.push(...clientDrawings);
+  }
+
+  emptyClientDrawing() {
+    let d;
+    while ((d = this.clientDrawings.pop())) {
+      d(this);
+    }
+  }
+
+  drawClientDrawing() {
+    this.clientDrawings.forEach((d) => d(this));
   }
 
   getCtx(

@@ -1,5 +1,15 @@
-import { Canvas, COLOR } from "./canvas";
+import { Canvas, CanvasDrawing, COLOR } from "./canvas";
 import { GameInput } from "./types";
+
+class Result<T> {
+  readonly canvasDrawings: CanvasDrawing[];
+  value: T;
+
+  constructor(initialValue: T) {
+    this.canvasDrawings = [];
+    this.value = initialValue;
+  }
+}
 
 export function clientStart(ground: number[][], canvas: Canvas) {
   const groundPoints = ground.map(([x, y]) => new Point(x, y));
@@ -13,64 +23,33 @@ export function clientStart(ground: number[][], canvas: Canvas) {
   return function clientCode(input: GameInput) {
     if (!landingZone) return [0, 0];
 
+    canvas.emptyClientDrawing();
+
     const ship = new Ship(input);
     const shipPos = ship.getPoint();
-    const { predictions, result } = inertialTrajectory();
-    const resultPoint = result.getPoint();
-    const closestLz = getLandingLocation(landingZone, resultPoint);
+    const inertialTrajectoryResult = inertialTrajectory();
+    canvas.addClientDrawing(...inertialTrajectoryResult.canvasDrawings);
 
-    canvas.clientDrawings = clientDrawings;
+    const resultPoint = inertialTrajectoryResult.value.getPoint();
+    const closestLzResult = getLandingLocation(landingZone, resultPoint);
+    const closestLz = closestLzResult.value;
+    canvas.addClientDrawing(...closestLzResult.canvasDrawings);
 
-    let rotate = -5,
-      power = 3;
+    const flightPlanResult = computeFlightPlan();
+    canvas.addClientDrawing(...flightPlanResult.canvasDrawings);
 
-    return [rotate, power];
+    const predictedShipResult = computeTrajectory(flightPlanResult.value);
+    canvas.addClientDrawing(...predictedShipResult.canvasDrawings);
+    const predictedShip = predictedShipResult.value;
+    canvas.addClientDrawing(...predictedShip.canvasDrawing);
 
-    function clientDrawings() {
-      if (!landingZone) return;
-
-      // landingZone.p1.draw(canvas);
-      // landingZone.p2.draw(canvas);
-      // landingZone.draw(canvas);
-
-      closestLz.draw(canvas);
-      closestLz.drawText(canvas, "cLZ");
-
-      predictions.forEach((point, index) => {
-        if (index < predictions.length - 1) point.draw(canvas);
-      });
-
-      const SIZE = 120;
-      if (result.isAllowedToLand()) {
-        canvas.drawText(
-          "✅",
-          resultPoint.x,
-          resultPoint.y - SIZE / 2,
-          SIZE,
-          "center"
-        );
-      } else {
-        canvas.drawText(
-          "💥",
-          resultPoint.x,
-          resultPoint.y - SIZE / 2,
-          SIZE,
-          "center"
-        );
-      }
-
-      const flightPlan = computeFlightPlan(canvas);
-      flightPlan.forEach((l) => l.draw(canvas, COLOR.BLUE));
-      computeTrajectory(flightPlan);
-    }
+    return predictedShip.getFlightParameters(ship);
 
     // =====================================================
     // Flight plan
     // =====================================================
 
-    function computeTrajectory(flightPlan: Line[]) {
-      console.clear();
-
+    function computeTrajectory(flightPlan: Line[]): Result<Ship> {
       // Landing ship
       let predictedShip = new Ship({
         x: closestLz.x,
@@ -82,33 +61,42 @@ export function clientStart(ground: number[][], canvas: Canvas) {
         power: 4,
       });
 
+      const result = new Result<Ship>(predictedShip);
+
       let line;
+      const PROXIMITY = 50;
+      const MARGIN = 200;
+
       while ((line = flightPlan.pop())) {
-        const CLOSE = 100;
         const higherPoint = line.getPoint("y", "max");
-        for (let i = 0; i < 100; i++) {
+        higherPoint.offset(0, MARGIN);
+
+        prediction: for (let i = 0; i < 60; i++) {
           let shipPoint = predictedShip.getPoint();
-          shipPoint.draw(canvas, COLOR.BLUE);
-
+          result.canvasDrawings.push((canvas: Canvas) => {
+            shipPoint.draw(canvas, COLOR.BLUE);
+          });
           const directPath = new Line(shipPoint, higherPoint);
-          predictedShip.moveIn(directPath, true, canvas);
-        }
-        // while (s
-        //   Math.abs(shipPoint.x - higherPoint.x) > CLOSE ||
-        //   Math.abs(shipPoint.y - higherPoint.y) > CLOSE
-        // ) {
+          predictedShip.moveIn(directPath, true);
 
-        // }
+          if (shipPoint.isClose(higherPoint, PROXIMITY, PROXIMITY)) {
+            break prediction;
+          }
+        }
       }
-      console.log(
-        "==============================================================="
-      );
+      result.value = predictedShip;
+
+      return result;
     }
 
-    function computeFlightPlan(canvas: Canvas) {
+    function computeFlightPlan(): Result<Line[]> {
       const directLine = new Line(shipPos, closestLz);
       const groundIntersections = groundPolygon.getIntersections(directLine);
-      groundIntersections.forEach((l) => l.draw(canvas));
+
+      const result = new Result<Line[]>([directLine]);
+      result.canvasDrawings.push((canvas) =>
+        groundIntersections.forEach((l) => l.draw(canvas))
+      );
 
       if (groundIntersections.length > 0) {
         let higher = new Point(0, 0);
@@ -118,19 +106,30 @@ export function clientStart(ground: number[][], canvas: Canvas) {
             higher = point;
           }
         });
-
-        return [new Line(closestLz, higher), new Line(higher, shipPos)];
+        const l1 = new Line(closestLz, higher);
+        const l2 = new Line(higher, shipPos);
+        result.canvasDrawings.push((canvas) => {
+          l1.draw(canvas, COLOR.BLUE);
+          l2.draw(canvas, COLOR.BLUE);
+        });
+        result.value = [l1, l2];
+      } else {
+        result.canvasDrawings.push((canvas) => {
+          directLine.draw(canvas, COLOR.BLUE);
+        });
       }
 
-      return [directLine];
+      return result;
     }
 
-    function inertialTrajectory() {
+    function inertialTrajectory(): Result<Ship> {
       const predictedShip = new Ship(input);
       let { rotate, power } = input;
       const predictions: Point[] = [];
       let groundColision = null,
         flyAway = false;
+
+      const result = new Result<Ship>(predictedShip);
 
       while (!groundColision && !flyAway) {
         predictedShip.move(rotate, power);
@@ -141,10 +140,37 @@ export function clientStart(ground: number[][], canvas: Canvas) {
         flyAway = checkFlyAway(point);
       }
 
-      return { predictions, result: predictedShip };
+      result.canvasDrawings.push((canvas: Canvas) => {
+        predictions.forEach((point, index) => {
+          if (index < predictions.length - 1) point.draw(canvas);
+        });
+      });
+
+      result.canvasDrawings.push((canvas: Canvas) => {
+        const SIZE = 120;
+        if (predictedShip.isAllowedToLand()) {
+          canvas.drawText(
+            "✅",
+            resultPoint.x,
+            resultPoint.y - SIZE / 2,
+            SIZE,
+            "center"
+          );
+        } else {
+          canvas.drawText(
+            "💥",
+            resultPoint.x,
+            resultPoint.y - SIZE / 2,
+            SIZE,
+            "center"
+          );
+        }
+      });
+
+      return result;
     }
 
-    function getLandingLocation(lz: Line, point: Point): Point {
+    function getLandingLocation(lz: Line, point: Point): Result<Point> {
       const SAFETY_MARGIN = 20;
       const line = lz.getPerpendicular(point);
       let LZ;
@@ -154,13 +180,20 @@ export function clientStart(ground: number[][], canvas: Canvas) {
         LZ = lz.getIntersection(line);
       }
 
+      const result = new Result(LZ);
+
       if (LZ.x > lz.p2.x) {
-        return lz.p2.offset(-SAFETY_MARGIN, 0);
+        result.value = lz.p2.offset(-SAFETY_MARGIN, 0);
       }
       if (LZ.x < lz.p1.x) {
-        return lz.p1.offset(SAFETY_MARGIN, 0);
+        result.value = lz.p1.offset(SAFETY_MARGIN, 0);
       }
-      return LZ;
+      result.canvasDrawings.push((canvas: Canvas) => {
+        result.value.draw(canvas);
+        result.value.drawText(canvas, "cLZ");
+      });
+
+      return result;
     }
   };
 
@@ -247,6 +280,10 @@ class Point implements Sprite {
 
   offset(x: number, y: number) {
     return new Point(this.x + x, this.y + y);
+  }
+
+  isClose(point: Point, x: number, y: number) {
+    return Math.abs(this.x - point.x) <= x && Math.abs(this.y - point.y) <= y;
   }
 }
 
@@ -380,6 +417,7 @@ class Ship {
   private pDiff: number;
   private soDiff: number;
   private pRotate: Angle | null;
+  readonly canvasDrawing: CanvasDrawing[];
 
   constructor(gameInput: GameInput) {
     this.x = gameInput.x;
@@ -392,6 +430,7 @@ class Ship {
     this.pDiff = -Infinity;
     this.soDiff = 0;
     this.pRotate = null;
+    this.canvasDrawing = [];
   }
 
   move(rotate: number, power: number, isReverse = false) {
@@ -411,7 +450,7 @@ class Ship {
     this.fuel = Math.max(this.fuel - this.power * direction, 0);
   }
 
-  moveIn(line: Line, isReverse = false, canvas: Canvas) {
+  moveIn(line: Line, isReverse = false) {
     const direction = isReverse ? -1 : 1;
     const angle = this.rotate.toRad();
     const inertialHs = this.hs + Math.cos(angle) * this.power * direction;
@@ -421,47 +460,53 @@ class Ship {
     const inertialY = this.y + inertialVs * direction;
 
     const lineAngle = Angle.fromRad(line.getAngle());
-    const movingInAngle = Angle.fromRad(
-      Math.atan((inertialY - this.y) / (inertialX - this.x))
-    );
-    const diff = Math.abs(lineAngle.toRad() - movingInAngle.toRad());
+    const inertialPoint = new Point(inertialX, inertialY);
+    const inertialLine = new Line(this.getPoint(), inertialPoint);
+    const inertialAngle = Angle.fromRad(inertialLine.getAngle());
+    const diff = Math.abs(lineAngle.toRad() - inertialAngle.toRad());
 
     let desiredAngle = Angle.fromInput(0);
 
     const soDiff = diff - this.pDiff;
-    if (soDiff > this.soDiff) {
+    if (diff > this.pDiff || soDiff > this.soDiff) {
       const allowedDiff = Math.min(diff, (Ship.MAX_ANGLE_STEP / 180) * Math.PI);
-      const operation = movingInAngle.toRad() > lineAngle.toRad() ? -1 : 1;
+      const operation = inertialAngle.toRad() > lineAngle.toRad() ? -1 : 1;
 
-      desiredAngle = Angle.fromRad(
+      desiredAngle = Angle.constrain(
         this.rotate.toRad() + allowedDiff * operation
       );
-      console.log("SODIFF");
     } else {
-      console.log("PROTATE#");
       if (this.pRotate) {
-        desiredAngle = Angle.fromRad(
+        desiredAngle = Angle.constrain(
           this.rotate.toRad() -
-            (this.rotate.toRad() - this.pRotate.toRad()) * 0.5
+            (this.rotate.toRad() - this.pRotate.toRad()) * 0.9
         );
       }
     }
 
-    canvas.drawArrow(this.x, this.y, 100, desiredAngle.toRad());
+    this.canvasDrawing.push((canvas: Canvas) => {
+      canvas.drawArrow(this.x, this.y, 100, this.rotate.toRad());
+    });
 
     const resultRotate = desiredAngle.toInput();
-    console.log(
-      `Linha: ${lineAngle.toInput().toFixed(0)}, Inercia: ${movingInAngle
-        .toInput()
-        .toFixed(0)}, Rotate atual: ${this.rotate
-        .toInput()
-        .toFixed(0)}, Resultado: ${resultRotate.toFixed(0)}`
-    );
+    // console.log(
+    //   `Linha: ${lineAngle.toInput().toFixed(0)}, Inercia: ${inertialAngle
+    //     .toInput()
+    //     .toFixed(0)}, Rotate atual: ${this.rotate
+    //     .toInput()
+    //     .toFixed(0)}, Resultado: ${resultRotate.toFixed(0)}`
+    // );
+    this.soDiff = diff - this.pDiff;
     this.pDiff = diff;
     this.pRotate = this.rotate;
-    this.soDiff = diff - this.pDiff;
 
-    this.move(resultRotate, 4, isReverse);
+    let power = 4;
+    // if (soDiff < 0.1) power = 3;
+    // if (soDiff < 0.01) power = 2;
+    // if (soDiff < 0.001) power = 1;
+    // if (soDiff < 0.0001) power = 0;
+
+    this.move(resultRotate, power, isReverse);
   }
 
   getPoint() {
@@ -478,6 +523,17 @@ class Ship {
 
   getAcceptableLandingHS() {
     return Ship.LANDING_HORIZONTAL_SPEED * (this.hs > 0 ? 1 : -1);
+  }
+
+  getFlightParameters(currentShip: Ship) {
+    const deltaRotate = Math.abs(
+      this.rotate.toInput() + 90 - (currentShip.rotate.toInput() + 90)
+    );
+    const dirRotate = this.rotate.toRad() > currentShip.rotate.toRad() ? -1 : 1;
+    const maxRotate = this.rotate.toInput() + Ship.MAX_ANGLE_STEP * dirRotate;
+    const allowedRotate = Math.min(deltaRotate, maxRotate);
+
+    return [allowedRotate, this.power];
   }
 }
 
@@ -497,6 +553,11 @@ class Angle {
   }
 
   static fromRad(value: number) {
-    return new Angle(value);
+    return new Angle(value < 0 ? value + Math.PI : value);
+  }
+
+  static constrain(value: number) {
+    const angle = value < 0 ? value + Math.PI : value;
+    return new Angle(Math.min(Math.max(angle, 0), Math.PI));
   }
 }

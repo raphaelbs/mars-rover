@@ -313,7 +313,7 @@ function gameLoop(
       logIteration(`  user out: ${desiredRotate}, ${desiredPower}`);
     }
 
-    if (canvas.clientDrawings) canvas.clientDrawings();
+    canvas.drawClientDrawing();
 
     animationId = requestAnimationFrame(() =>
       gameLoop(newInput, groundPoints, clientCode)
